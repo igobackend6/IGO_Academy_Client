@@ -6,7 +6,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/widgets/voice_assistant_bottom_sheet.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-
+import '../../../courses/presentation/providers/course_provider.dart';
+import '../../../../shared/models/enrollment_model.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -262,45 +263,87 @@ class _FeaturedCoursesCarousel extends StatelessWidget {
   }
 }
 
-class _ContinueLearningList extends StatelessWidget {
+class _ContinueLearningList extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 120,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enrollmentsAsync = ref.watch(userEnrollmentsStreamProvider);
+
+    return enrollmentsAsync.when(
+      data: (enrollments) {
+        if (enrollments.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Text('Start a course to see your progress here', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textTertiary)),
+          );
+        }
+        return SizedBox(
+          height: 120,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: enrollments.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (context, index) {
+              return _ContinueLearningCard(enrollment: enrollments[index]);
+            },
+          ),
+        );
+      },
+      loading: () => const SizedBox(
+        height: 120,
+        child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      ),
+      error: (e, st) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: 3,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
-        itemBuilder: (context, index) {
-          return Container(
-            width: 260,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
+        child: Text('Failed to load progress', style: TextStyle(color: Colors.red)),
+      ),
+    );
+  }
+}
+
+class _ContinueLearningCard extends ConsumerWidget {
+  final EnrollmentModel enrollment;
+  const _ContinueLearningCard({required this.enrollment});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final courseAsync = ref.watch(courseDetailProvider(enrollment.courseId));
+
+    return GestureDetector(
+      onTap: () => context.push(RouteNames.courseDetail.replaceFirst(':id', enrollment.courseId)),
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: courseAsync.when(
+          data: (course) {
+            if (course == null) return const SizedBox.shrink();
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Course Title ${index + 1}', style: Theme.of(context).textTheme.titleSmall),
+                Text(course.title, style: Theme.of(context).textTheme.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 6),
-                Text('Lesson ${index * 3 + 2} of 24', style: Theme.of(context).textTheme.bodySmall),
+                Text('Lesson ${enrollment.completedLessons} of ${course.totalLessons}', style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 10),
                 LinearProgressIndicator(
-                  value: (index + 1) * 0.2,
+                  value: (enrollment.progressPercent / 100).clamp(0.0, 1.0),
                   backgroundColor: AppColors.surfaceVariant,
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 const SizedBox(height: 4),
-                Text('${(index + 1) * 20}% complete',
+                Text('${enrollment.progressPercent.toStringAsFixed(0)}% complete',
                     style: Theme.of(context).textTheme.labelSmall),
               ],
-            ),
-          );
-        },
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          error: (_, __) => const Text('Error loading course'),
+        ),
       ),
     );
   }

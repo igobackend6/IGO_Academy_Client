@@ -4,6 +4,9 @@ import '../../data/repositories/course_repository_impl.dart';
 import '../../domain/repositories/course_repository.dart';
 import '../../../../shared/models/course_model.dart';
 import '../../../../shared/models/lesson_model.dart';
+import '../../../../shared/models/enrollment_model.dart';
+import '../../../../core/services/supabase_service.dart';
+import '../../../../core/constants/api_constants.dart';
 
 final courseRemoteDataSourceProvider = Provider<CourseRemoteDataSource>(
   (_) => CourseRemoteDataSourceImpl(),
@@ -117,4 +120,17 @@ final userEnrollmentsProvider = FutureProvider((ref) async {
   final repo = ref.watch(courseRepositoryProvider);
   final result = await repo.getUserEnrollments();
   return result.enrollments;
+});
+
+// -- User enrollments stream (real-time) --
+final userEnrollmentsStreamProvider = StreamProvider<List<EnrollmentModel>>((ref) {
+  final userId = SupabaseService.currentUser?.id;
+  if (userId == null) return Stream.value([]);
+
+  return SupabaseService.client
+      .from(ApiConstants.enrollmentsTable)
+      .stream(primaryKey: ['id'])
+      .eq('user_id', userId)
+      .order('last_accessed_at', ascending: false)
+      .map((data) => data.map((e) => EnrollmentModel.fromJson(e)).toList());
 });
