@@ -16,29 +16,11 @@ class CourseEnrollmentScreen extends ConsumerStatefulWidget {
 }
 
 class _CourseEnrollmentScreenState extends ConsumerState<CourseEnrollmentScreen> {
-  bool _isEnrolling = false;
-
-  Future<void> _enroll() async {
-    setState(() => _isEnrolling = true);
-    final repo = ref.read(courseRepositoryProvider);
-    final result = await repo.enrollInCourse(widget.courseId);
-    setState(() => _isEnrolling = false);
-    if (result.enrollment != null && mounted) {
-      context.go(RouteNames.home);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enrolled successfully! Start learning now.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    } else if (result.failure != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.failure!.message),
-          backgroundColor: AppColors.error,
-        ),
-      );
-    }
+  // Navigate to enquiry form — admin must approve before enrollment is active
+  void _openEnquiryForm(String courseTitle) {
+    context.push(
+      RouteNames.courseEnquiry.replaceFirst(':categoryId', Uri.encodeComponent(courseTitle)),
+    );
   }
 
   @override
@@ -92,9 +74,8 @@ class _CourseEnrollmentScreenState extends ConsumerState<CourseEnrollmentScreen>
                 ),
                 const Spacer(),
                 AppButton(
-                  label: course.isFree ? 'Enroll for Free' : 'Enroll Now',
-                  onPressed: _enroll,
-                  isLoading: _isEnrolling,
+                  label: 'Apply for Enrollment',
+                  onPressed: () => _openEnquiryForm(course.title),
                 ),
                 const SizedBox(height: 12),
                 AppButton(

@@ -15,12 +15,12 @@ class CourseEnquiryRepository {
     String? additionalDetails,
   }) async {
     try {
-      await _supabase.from('course_enquiries').insert({
-        'name': name,
+      await _supabase.from('app_enrollment_leads').insert({
+        'full_name': name,
         'email': email,
         'phone': phone,
         'alt_phone': altPhone,
-        'course_id': courseId,
+        'program_of_interest': courseId,
         'additional_details': additionalDetails,
       });
     } catch (e) {
