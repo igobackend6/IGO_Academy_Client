@@ -201,11 +201,20 @@ class CourseDetailScreen extends ConsumerWidget {
             child: enrollment != null
                 ? AppButton(
                     label: 'Continue Learning',
-                    onPressed: () {},
+                    onPressed: () {
+                      final lessons = lessonsAsync.value;
+                      if (lessons != null && lessons.isNotEmpty) {
+                        final first = lessons.first;
+                        final route = first.type == LessonType.pdf
+                            ? '/lesson/${first.id}/pdf'
+                            : '/lesson/${first.id}/video';
+                        context.push(route);
+                      }
+                    },
                     prefixIcon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
                   )
                 : AppButton(
-                    label: 'Enroll Now — Free',
+                    label: 'Apply for Enrollment',
                     onPressed: () => context.push('/courses/$courseId/enroll'),
                   ),
           ),

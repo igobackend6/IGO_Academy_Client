@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../data/models/training_category_model.dart';
 import '../../../../features/courses/data/repositories/course_enquiry_repository.dart';
 
 class CourseEnquiryScreen extends ConsumerStatefulWidget {
@@ -20,14 +19,13 @@ class _CourseEnquiryScreenState extends ConsumerState<CourseEnquiryScreen> {
   final _phoneController = TextEditingController();
   final _altPhoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final _programController = TextEditingController();
   final _detailsController = TextEditingController();
-  
-  String? _selectedCategoryId;
 
   @override
   void initState() {
     super.initState();
-    _selectedCategoryId = widget.categoryId;
+    _programController.text = Uri.decodeComponent(widget.categoryId);
   }
 
   @override
@@ -36,25 +34,19 @@ class _CourseEnquiryScreenState extends ConsumerState<CourseEnquiryScreen> {
     _phoneController.dispose();
     _altPhoneController.dispose();
     _emailController.dispose();
+    _programController.dispose();
     _detailsController.dispose();
     super.dispose();
   }
 
   void _submitEnquiry() {
     if (_formKey.currentState?.validate() ?? false) {
-      if (_selectedCategoryId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a program of interest')),
-        );
-        return;
-      }
-      
       ref.read(courseEnquiryNotifierProvider.notifier).submit(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         altPhone: _altPhoneController.text.trim().isEmpty ? null : _altPhoneController.text.trim(),
-        courseId: _selectedCategoryId!,
+        courseId: _programController.text.trim(),
         additionalDetails: _detailsController.text.trim().isEmpty ? null : _detailsController.text.trim(),
       );
     }
@@ -159,24 +151,10 @@ class _CourseEnquiryScreenState extends ConsumerState<CourseEnquiryScreen> {
               const SizedBox(height: 32),
               
               _buildSectionTitle('PROGRAM OF INTEREST *'),
-              DropdownButtonFormField<String>(
-                value: _selectedCategoryId,
-                decoration: const InputDecoration(
-                  hintText: 'Select a program',
-                ),
-                isExpanded: true,
-                items: mockTrainingCategories.map((cat) {
-                  return DropdownMenuItem<String>(
-                    value: cat.id,
-                    child: Text(cat.title, overflow: TextOverflow.ellipsis),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategoryId = value;
-                  });
-                },
-                validator: (value) => value == null ? 'Please select a program' : null,
+              TextFormField(
+                controller: _programController,
+                decoration: const InputDecoration(hintText: 'e.g. Organic Farming, Aquaculture…'),
+                validator: (value) => value == null || value.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 32),
               
