@@ -1,89 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../shared/models/quiz_model.dart';
-import '../../../../shared/models/resource_model.dart';
-import '../../../courses/presentation/providers/course_provider.dart';
+import '../../../assessments/providers/assessment_provider.dart';
 import '../../../../core/widgets/app_loading.dart';
 import '../../../../core/widgets/app_error.dart';
 
-// Dummy provider for resources, since it's not in the repository yet.
-final courseResourcesProvider = FutureProvider.family<List<ResourceModel>, String>((ref, courseId) async {
-  await Future.delayed(const Duration(seconds: 1)); // simulate network
-  return [
-    ResourceModel(
-      id: '1',
-      courseId: courseId,
-      title: 'Irrigation Syllabus Info',
-      description: 'Here the full notes pdf for smart irrigation.',
-      fileUrl: 'https://example.com/info.pdf',
-      fileType: 'pdf',
-      category: ResourceCategory.information,
-    ),
-    ResourceModel(
-      id: '2',
-      courseId: courseId,
-      title: 'Smart Farming Notes',
-      description: 'Detailed notes on smart farming.',
-      fileUrl: 'https://example.com/notes.pdf',
-      fileType: 'pdf',
-      category: ResourceCategory.notes,
-    ),
-  ];
+// Real providers querying public.resources view
+final _courseInfoProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>((ref, courseId) async {
+  final res = await Supabase.instance.client
+      .from('resources')
+      .select()
+      .eq('course_id', courseId)
+      .eq('type', 'information')
+      .order('display_order');
+  return (res as List).cast<Map<String, dynamic>>();
 });
 
-// Dummy provider for quizzes to mock Level 1 and Level 2
-final courseQuizzesProvider = FutureProvider.family<List<QuizModel>, String>((ref, courseId) async {
-  await Future.delayed(const Duration(seconds: 1));
-  return [
-    QuizModel(
-      id: 'q1',
-      courseId: courseId,
-      title: 'Level 1 Assessment',
-      description: 'Basic assessment for this course.',
-      totalQuestions: 10,
-    ),
-    QuizModel(
-      id: 'q2',
-      courseId: courseId,
-      title: 'Level 2 Assessment',
-      description: 'Advanced assessment. Unlocked after Level 1.',
-      totalQuestions: 15,
-    ),
-  ];
-});
-
-// Dummy provider for checking if Level 1 is passed
-final isLevel1PassedProvider = FutureProvider.family<bool, String>((ref, courseId) async {
-  await Future.delayed(const Duration(seconds: 1));
-  return false; // Assuming not passed by default for demo
+final _courseNotesProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>((ref, courseId) async {
+  final res = await Supabase.instance.client
+      .from('resources')
+      .select()
+      .eq('course_id', courseId)
+      .eq('type', 'note')
+      .order('display_order');
+  return (res as List).cast<Map<String, dynamic>>();
 });
 
 class EnrolledCourseSidePanel extends ConsumerWidget {
   final String courseId;
+  final String courseTitle;
 
-  const EnrolledCourseSidePanel({super.key, required this.courseId});
+  const EnrolledCourseSidePanel({
+    super.key,
+    required this.courseId,
+    required this.courseTitle,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Drawer(
       backgroundColor: AppColors.background,
-      width: MediaQuery.of(context).size.width * 0.85,
+      width: MediaQuery.of(context).size.width * 0.88,
       child: SafeArea(
         child: DefaultTabController(
           length: 3,
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Course Resources',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                    Expanded(
+                      child: Text(
+                        'Course Resources',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -105,9 +82,9 @@ class EnrolledCourseSidePanel extends ConsumerWidget {
               Expanded(
                 child: TabBarView(
                   children: [
-                    _AssessmentTab(courseId: courseId),
-                    _ResourcesTab(courseId: courseId, category: ResourceCategory.information),
-                    _ResourcesTab(courseId: courseId, category: ResourceCategory.notes),
+                    _AssessmentTab(courseId: courseId, courseTitle: courseTitle),
+                    _ResourceTab(provider: _courseInfoProvider(courseId), emptyLabel: 'information'),
+                    _ResourceTab(provider: _courseNotesProvider(courseId), emptyLabel: 'notes'),
                   ],
                 ),
               ),
@@ -119,54 +96,111 @@ class EnrolledCourseSidePanel extends ConsumerWidget {
   }
 }
 
+// ── Assessment tab — real data from public.assessments view ──────────────────
+
 class _AssessmentTab extends ConsumerWidget {
   final String courseId;
-  const _AssessmentTab({required this.courseId});
+  final String courseTitle;
+
+  const _AssessmentTab({required this.courseId, required this.courseTitle});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final quizzesAsync = ref.watch(courseQuizzesProvider(courseId));
-    final isLevel1PassedAsync = ref.watch(isLevel1PassedProvider(courseId));
+    final assessmentsAsync = ref.watch(assessmentsProvider(courseId));
 
-    return quizzesAsync.when(
+    return assessmentsAsync.when(
       loading: () => const AppLoading(),
-      error: (err, _) => AppError(message: err.toString()),
-      data: (quizzes) {
-        if (quizzes.isEmpty) {
-          return const Center(child: Text('No assessments available.'));
+      error: (e, _) => AppError(message: e.toString()),
+      data: (assessments) {
+        if (assessments.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.quiz_outlined, size: 56, color: AppColors.textTertiary),
+                  const SizedBox(height: 16),
+                  Text('No assessments yet', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 6),
+                  Text('Check back after your next lesson',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+          );
         }
-
-        final isLevel1Passed = isLevel1PassedAsync.value ?? false;
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: quizzes.length,
-          itemBuilder: (context, index) {
-            final quiz = quizzes[index];
-            final isLevel2 = index == 1; // Assuming 2nd quiz is level 2
-            final isLocked = isLevel2 && !isLevel1Passed;
+          itemCount: assessments.length,
+          itemBuilder: (context, i) {
+            final a = assessments[i];
+            final subAsync = ref.watch(mySubmissionProvider(a.id));
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              color: isLocked ? AppColors.surfaceVariant : AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                title: Text(quiz.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(quiz.description ?? ''),
-                trailing: isLocked
-                    ? const Icon(Icons.lock, color: Colors.grey)
-                    : ElevatedButton(
-                        onPressed: () {
-                          // TODO: Navigate to quiz attempt
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Start'),
+            return subAsync.when(
+              loading: () => const SizedBox(height: 72),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (sub) {
+                final done = sub != null;
+                final score = sub?['score'] as num?;
+                final passed = sub?['passed'] as bool?;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  color: AppColors.surface,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(14),
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-              ),
+                      child: const Icon(Icons.quiz_rounded, color: AppColors.primary, size: 22),
+                    ),
+                    title: Text(a.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    subtitle: Text(
+                      '${a.questions.length} questions · Pass ${a.passScore}%'
+                      '${a.timerMins != null ? ' · ⏱ ${a.timerMins} min' : ''}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: done
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${score?.toStringAsFixed(0)}%',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: passed == true ? AppColors.success : AppColors.error,
+                                ),
+                              ),
+                              Text(passed == true ? 'Passed' : 'Failed',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: passed == true ? AppColors.success : AppColors.error,
+                                  )),
+                            ],
+                          )
+                        : ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              context.push('/assessment-quiz', extra: a);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Start', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                          ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -175,85 +209,126 @@ class _AssessmentTab extends ConsumerWidget {
   }
 }
 
-class _ResourcesTab extends ConsumerWidget {
-  final String courseId;
-  final ResourceCategory category;
+// ── Information / Notes tab — real data from public.resources view ───────────
 
-  const _ResourcesTab({required this.courseId, required this.category});
+class _ResourceTab extends ConsumerWidget {
+  final ProviderListenable<AsyncValue<List<Map<String, dynamic>>>> provider;
+  final String emptyLabel;
+
+  const _ResourceTab({required this.provider, required this.emptyLabel});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final resourcesAsync = ref.watch(courseResourcesProvider(courseId));
+    final async = ref.watch(provider);
 
-    return resourcesAsync.when(
+    return async.when(
       loading: () => const AppLoading(),
-      error: (err, _) => AppError(message: err.toString()),
-      data: (resources) {
-        final filtered = resources.where((r) => r.category == category).toList();
-
-        if (filtered.isEmpty) {
+      error: (e, _) => AppError(message: e.toString()),
+      data: (items) {
+        if (items.isEmpty) {
           return Center(
-            child: Text('No ${category.name} available.'),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    emptyLabel == 'notes' ? Icons.notes_outlined : Icons.info_outline_rounded,
+                    size: 56,
+                    color: AppColors.textTertiary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text('No $emptyLabel available', style: Theme.of(context).textTheme.titleSmall),
+                ],
+              ),
+            ),
           );
         }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: filtered.length,
-          itemBuilder: (context, index) {
-            final resource = filtered[index];
+          itemCount: items.length,
+          itemBuilder: (context, i) {
+            final item = items[i];
+            final title = item['title'] as String? ?? '';
+            final content = item['content'] as String? ?? '';
+            final hasPdf = item['pdf_path'] != null;
+
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               color: AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: ListTile(
-                leading: _buildIconForFileType(resource.fileType),
-                title: Text(resource.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(resource.description ?? ''),
-                trailing: const Icon(Icons.remove_red_eye, color: AppColors.primary),
-                onTap: () {
-                  // TODO: Open PDF/PPT viewer or launch URL
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Opening read-only file: ${resource.title}')),
-                  );
-                },
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: hasPdf
+                                ? Colors.red.withOpacity(0.1)
+                                : AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            hasPdf ? Icons.picture_as_pdf_outlined : Icons.article_outlined,
+                            color: hasPdf ? Colors.red : AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (content.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        content,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.textSecondary,
+                              height: 1.5,
+                            ),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (hasPdf) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.withOpacity(0.2)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.picture_as_pdf, color: Colors.red, size: 14),
+                            SizedBox(width: 6),
+                            Text('PDF attached', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             );
           },
         );
       },
-    );
-  }
-
-  Widget _buildIconForFileType(String fileType) {
-    IconData icon;
-    Color color;
-    switch (fileType.toLowerCase()) {
-      case 'pdf':
-        icon = Icons.picture_as_pdf;
-        color = Colors.red;
-        break;
-      case 'ppt':
-      case 'pptx':
-        icon = Icons.slideshow;
-        color = Colors.orange;
-        break;
-      case 'doc':
-      case 'docx':
-        icon = Icons.description;
-        color = Colors.blue;
-        break;
-      default:
-        icon = Icons.insert_drive_file;
-        color = Colors.grey;
-    }
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(icon, color: color),
     );
   }
 }
