@@ -156,15 +156,12 @@ class _AssessmentTab extends ConsumerWidget {
               isLocked = i > 0;
             }
 
-            return subAsync.when(
-              loading: () => const SizedBox(height: 72),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (sub) {
-                final done = sub != null;
-                final score = sub?['score'] as num?;
-                final passed = sub?['passed'] as bool?;
-
-                return Card(
+            // Build card helper — works with or without a prior submission
+            Widget buildCard(Map<String, dynamic>? sub) {
+              final done = sub != null;
+              final score = sub?['score'] as num?;
+              final passed = sub?['passed'] as bool?;
+              return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   color: isLocked ? AppColors.surfaceVariant : AppColors.surface,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -219,7 +216,12 @@ class _AssessmentTab extends ConsumerWidget {
                           ),
                   ),
                 );
-              },
+            }
+
+            return subAsync.when(
+              loading: () => buildCard(null),
+              error:   (_, __) => buildCard(null),
+              data:    (sub)   => buildCard(sub),
             );
           },
         );
