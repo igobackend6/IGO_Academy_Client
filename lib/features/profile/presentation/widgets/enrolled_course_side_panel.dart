@@ -7,6 +7,7 @@ import '../../../assessments/providers/assessment_provider.dart';
 import '../../../../core/widgets/app_loading.dart';
 import '../../../../core/widgets/app_error.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../courses/presentation/providers/course_provider.dart';
 
@@ -282,68 +283,99 @@ class _ResourceTab extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(14),
                 side: const BorderSide(color: AppColors.border),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: hasPdf
-                                ? Colors.red.withOpacity(0.1)
-                                : AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                onTap: hasPdf ? () async {
+                  final path = item['pdf_path'] as String;
+                  String url = path;
+                  if (!path.startsWith('http')) {
+                    // Try to guess the bucket, or assume it's just 'resources'
+                    try {
+                      url = Supabase.instance.client.storage.from('resources').getPublicUrl(path);
+                    } catch (e) {
+                      url = Supabase.instance.client.storage.from(ApiConstants.lessonPdfsBucket).getPublicUrl(path);
+                    }
+                  }
+                  
+                  final uri = Uri.parse(url);
+                  try {
+                    final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    if (!success && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not launch PDF viewer')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error opening PDF: $e\\nURL: $url')),
+                      );
+                    }
+                  }
+                } : null,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: hasPdf
+                                  ? Colors.red.withOpacity(0.1)
+                                  : AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              hasPdf ? Icons.picture_as_pdf_outlined : Icons.article_outlined,
+                              color: hasPdf ? Colors.red : AppColors.primary,
+                              size: 20,
+                            ),
                           ),
-                          child: Icon(
-                            hasPdf ? Icons.picture_as_pdf_outlined : Icons.article_outlined,
-                            color: hasPdf ? Colors.red : AppColors.primary,
-                            size: 20,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
                           ),
+                        ],
+                      ),
+                      if (content.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          content,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                                height: 1.5,
+                              ),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      ],
+                      if (hasPdf) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.withOpacity(0.2)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.picture_as_pdf, color: Colors.red, size: 14),
+                              SizedBox(width: 6),
+                              Text('PDF attached', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600)),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                    if (content.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        content,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textSecondary,
-                              height: 1.5,
-                            ),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
-                    if (hasPdf) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withOpacity(0.2)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.picture_as_pdf, color: Colors.red, size: 14),
-                            SizedBox(width: 6),
-                            Text('PDF attached', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             );
