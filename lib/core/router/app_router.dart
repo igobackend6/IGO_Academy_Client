@@ -27,6 +27,10 @@ import '../../features/profile/presentation/screens/settings_screen.dart';
 import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../features/profile/presentation/screens/learning_history_screen.dart';
 import '../../features/profile/presentation/screens/help_support_screen.dart';
+import '../../features/assessments/screens/assessment_list_screen.dart';
+import '../../features/assessments/screens/assessment_quiz_screen.dart';
+import '../../features/assessments/screens/assessment_result_screen.dart';
+import '../../shared/models/assessment_model.dart';
 import '../../shared/widgets/main_shell.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -199,6 +203,33 @@ class AppRouter {
         builder: (context, state) {
           final certificateId = state.pathParameters['certificateId']!;
           return CertificateDetailScreen(certificateId: certificateId);
+        },
+      ),
+
+      // Assessments
+      GoRoute(
+        path: '/assessments/:courseId',
+        name: 'assessmentList',
+        builder: (context, state) {
+          final courseId = state.pathParameters['courseId']!;
+          final courseTitle = state.uri.queryParameters['title'] ?? 'Assessments';
+          return AssessmentListScreen(courseId: courseId, courseTitle: courseTitle);
+        },
+      ),
+      GoRoute(
+        path: '/assessment-quiz',
+        name: 'assessmentQuiz',
+        builder: (context, state) {
+          final assessment = state.extra as AssessmentModel;
+          return AssessmentQuizScreen(assessment: assessment);
+        },
+      ),
+      GoRoute(
+        path: '/assessment-result',
+        name: 'assessmentResult',
+        builder: (context, state) {
+          final result = state.extra as AssessmentResult;
+          return AssessmentResultScreen(result: result);
         },
       ),
 

@@ -199,19 +199,44 @@ class CourseDetailScreen extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: enrollment != null
-                ? AppButton(
-                    label: 'Continue Learning',
-                    onPressed: () {
-                      final lessons = lessonsAsync.value;
-                      if (lessons != null && lessons.isNotEmpty) {
-                        final first = lessons.first;
-                        final route = first.type == LessonType.pdf
-                            ? '/lesson/${first.id}/pdf'
-                            : '/lesson/${first.id}/video';
-                        context.push(route);
-                      }
-                    },
-                    prefixIcon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: AppButton(
+                          label: 'Continue',
+                          onPressed: () {
+                            final lessons = lessonsAsync.value;
+                            if (lessons != null && lessons.isNotEmpty) {
+                              final first = lessons.first;
+                              final route = first.type == LessonType.pdf
+                                  ? '/lesson/${first.id}/pdf'
+                                  : '/lesson/${first.id}/video';
+                              context.push(route);
+                            }
+                          },
+                          prefixIcon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      courseAsync.when(
+                        data: (course) => SizedBox(
+                          height: 52,
+                          child: OutlinedButton(
+                            onPressed: () => context.push(
+                              '/assessments/$courseId?title=${Uri.encodeComponent(course?.title ?? '')}',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.primary),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                            ),
+                            child: const Icon(Icons.quiz_rounded, color: AppColors.primary),
+                          ),
+                        ),
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                    ],
                   )
                 : AppButton(
                     label: 'Apply for Enrollment',
