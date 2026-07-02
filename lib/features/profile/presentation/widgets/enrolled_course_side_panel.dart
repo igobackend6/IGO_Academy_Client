@@ -6,58 +6,8 @@ import '../../../../shared/models/resource_model.dart';
 import '../../../courses/presentation/providers/course_provider.dart';
 import '../../../../core/widgets/app_loading.dart';
 import '../../../../core/widgets/app_error.dart';
-
-// Dummy provider for resources, since it's not in the repository yet.
-final courseResourcesProvider = FutureProvider.family<List<ResourceModel>, String>((ref, courseId) async {
-  await Future.delayed(const Duration(seconds: 1)); // simulate network
-  return [
-    ResourceModel(
-      id: '1',
-      courseId: courseId,
-      title: 'Irrigation Syllabus Info',
-      description: 'Here the full notes pdf for smart irrigation.',
-      fileUrl: 'https://example.com/info.pdf',
-      fileType: 'pdf',
-      category: ResourceCategory.information,
-    ),
-    ResourceModel(
-      id: '2',
-      courseId: courseId,
-      title: 'Smart Farming Notes',
-      description: 'Detailed notes on smart farming.',
-      fileUrl: 'https://example.com/notes.pdf',
-      fileType: 'pdf',
-      category: ResourceCategory.notes,
-    ),
-  ];
-});
-
-// Dummy provider for quizzes to mock Level 1 and Level 2
-final courseQuizzesProvider = FutureProvider.family<List<QuizModel>, String>((ref, courseId) async {
-  await Future.delayed(const Duration(seconds: 1));
-  return [
-    QuizModel(
-      id: 'q1',
-      courseId: courseId,
-      title: 'Level 1 Assessment',
-      description: 'Basic assessment for this course.',
-      totalQuestions: 10,
-    ),
-    QuizModel(
-      id: 'q2',
-      courseId: courseId,
-      title: 'Level 2 Assessment',
-      description: 'Advanced assessment. Unlocked after Level 1.',
-      totalQuestions: 15,
-    ),
-  ];
-});
-
-// Dummy provider for checking if Level 1 is passed
-final isLevel1PassedProvider = FutureProvider.family<bool, String>((ref, courseId) async {
-  await Future.delayed(const Duration(seconds: 1));
-  return false; // Assuming not passed by default for demo
-});
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/constants/api_constants.dart';
 
 class EnrolledCourseSidePanel extends ConsumerWidget {
   final String courseId;
@@ -126,7 +76,8 @@ class _AssessmentTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final quizzesAsync = ref.watch(courseQuizzesProvider(courseId));
-    final isLevel1PassedAsync = ref.watch(isLevel1PassedProvider(courseId));
+    final lessonsAsync = ref.watch(courseLessonsProvider(courseId));
+    final completedLessonIdsAsync = ref.watch(completedLessonIdsProvider);
 
     return quizzesAsync.when(
       loading: () => const AppLoading(),
@@ -136,15 +87,26 @@ class _AssessmentTab extends ConsumerWidget {
           return const Center(child: Text('No assessments available.'));
         }
 
-        final isLevel1Passed = isLevel1PassedAsync.value ?? false;
+        final lessons = lessonsAsync.value ?? [];
+        final completedLessonIds = completedLessonIdsAsync.value ?? [];
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: quizzes.length,
           itemBuilder: (context, index) {
             final quiz = quizzes[index];
-            final isLevel2 = index == 1; // Assuming 2nd quiz is level 2
-            final isLocked = isLevel2 && !isLevel1Passed;
+            final level = index + 1;
+            
+            // Locked if the corresponding lesson at this index has not been completed
+            bool isLocked = false;
+            if (lessons.length > index) {
+              final currentLesson = lessons[index];
+              isLocked = !completedLessonIds.contains(currentLesson.id);
+            } else {
+              // If there's no lesson, fallback to locking unless it's index 0?
+              // Assuming 1:1 mapping, it will be locked if there's no lesson to complete.
+              isLocked = index > 0;
+            }
 
             return Card(
               margin: const EdgeInsets.only(bottom: 16),
@@ -152,20 +114,18 @@ class _AssessmentTab extends ConsumerWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: ListTile(
                 contentPadding: const EdgeInsets.all(16),
-                title: Text(quiz.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Text('Level $level: ${quiz.title}', style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(quiz.description ?? ''),
                 trailing: isLocked
                     ? const Icon(Icons.lock, color: Colors.grey)
-                    : ElevatedButton(
-                        onPressed: () {
-                          // TODO: Navigate to quiz attempt
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Start'),
-                      ),
+                    : const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: isLocked
+                    ? null
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Starting ${quiz.title}...')),
+                        );
+                      },
               ),
             );
           },

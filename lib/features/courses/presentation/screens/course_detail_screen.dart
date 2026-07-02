@@ -19,6 +19,9 @@ class CourseDetailScreen extends ConsumerWidget {
     final courseAsync = ref.watch(courseDetailProvider(courseId));
     final lessonsAsync = ref.watch(courseLessonsProvider(courseId));
     final enrollmentAsync = ref.watch(enrollmentProvider(courseId));
+    final quizzesAsync = ref.watch(courseQuizzesProvider(courseId));
+    final passedQuizIdsAsync = ref.watch(passedQuizIdsProvider);
+    final completedLessonIdsAsync = ref.watch(completedLessonIdsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -141,11 +144,30 @@ class CourseDetailScreen extends ConsumerWidget {
               lessonsAsync.when(
                 loading: () => const SliverToBoxAdapter(child: AppLoading()),
                 error: (err, _) => SliverToBoxAdapter(child: AppError(message: err.toString())),
-                data: (lessons) => SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final lesson = lessons[index];
-                      return Padding(
+                data: (lessons) {
+                  final quizzes = quizzesAsync.value ?? [];
+                  final passedQuizIds = passedQuizIdsAsync.value ?? [];
+                  final completedLessonIds = completedLessonIdsAsync.value ?? [];
+
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final lesson = lessons[index];
+                        
+                        // Video N is unlocked if N == 1 OR Quiz (N-1) is passed.
+                        bool isLocked = false;
+                        if (index > 0) {
+                          if (quizzes.length > index - 1) {
+                            final prevQuiz = quizzes[index - 1];
+                            isLocked = !passedQuizIds.contains(prevQuiz.id);
+                          } else {
+                            // Fallback if no quiz exists for previous video
+                            final prevLesson = lessons[index - 1];
+                            isLocked = !completedLessonIds.contains(prevLesson.id);
+                          }
+                        }
+
+                        return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                         child: ListTile(
                           tileColor: AppColors.surface,
@@ -157,34 +179,41 @@ class CourseDetailScreen extends ConsumerWidget {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
+                              color: isLocked ? Colors.grey.withOpacity(0.1) : AppColors.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
                               lesson.type == LessonType.pdf
                                   ? Icons.picture_as_pdf_outlined
                                   : Icons.play_circle_outline_rounded,
-                              color: AppColors.primary,
+                              color: isLocked ? Colors.grey : AppColors.primary,
                               size: 20,
                             ),
                           ),
                           title: Text(lesson.title,
-                              style: Theme.of(context).textTheme.titleSmall),
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: isLocked ? Colors.grey : null,
+                              )),
                           subtitle: Text('${lesson.durationSeconds ~/ 60} min',
                               style: Theme.of(context).textTheme.bodySmall),
-                          trailing: const Icon(Icons.lock_outline, size: 16, color: AppColors.textTertiary),
-                          onTap: () {
-                            final route = lesson.type == LessonType.pdf
-                                ? '/lesson/${lesson.id}/pdf'
-                                : '/lesson/${lesson.id}/video';
-                            context.push(route);
-                          },
+                          trailing: isLocked 
+                            ? const Icon(Icons.lock, size: 16, color: Colors.grey)
+                            : const Icon(Icons.lock_open, size: 16, color: AppColors.textTertiary),
+                          onTap: isLocked
+                              ? null
+                              : () {
+                                  final route = lesson.type == LessonType.pdf
+                                      ? '/lesson/${lesson.id}/pdf'
+                                      : '/lesson/${lesson.id}/video';
+                                  context.push(route);
+                                },
                         ),
                       );
                     },
                     childCount: lessons.length,
                   ),
-                ),
+                );
+                },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),

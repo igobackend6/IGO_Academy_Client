@@ -15,6 +15,7 @@ class ApiConstants {
   static const String quizzesTable = 'quizzes';
   static const String quizQuestionsTable = 'quiz_questions';
   static const String quizAttemptsTable = 'quiz_attempts';
+  static const String courseResourcesTable = 'course_resources';
   static const String certificatesTable = 'certificates';
   static const String notificationsTable = 'notifications';
 

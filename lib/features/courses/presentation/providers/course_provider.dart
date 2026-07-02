@@ -5,6 +5,8 @@ import '../../domain/repositories/course_repository.dart';
 import '../../../../shared/models/course_model.dart';
 import '../../../../shared/models/lesson_model.dart';
 import '../../../../shared/models/enrollment_model.dart';
+import '../../../../shared/models/quiz_model.dart';
+import '../../../../shared/models/resource_model.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/constants/api_constants.dart';
 
@@ -133,4 +135,57 @@ final userEnrollmentsStreamProvider = StreamProvider<List<EnrollmentModel>>((ref
       .eq('user_id', userId)
       .order('last_accessed_at', ascending: false)
       .map((data) => data.map((e) => EnrollmentModel.fromJson(e)).toList());
+});
+
+// -- User passed quizzes --
+final passedQuizIdsProvider = StreamProvider.autoDispose<List<String>>((ref) {
+  final supabase = SupabaseService.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) return Stream.value([]);
+
+  return supabase
+      .from(ApiConstants.quizAttemptsTable)
+      .stream(primaryKey: ['id'])
+      .eq('user_id', user.id)
+      .map((data) => data
+          .where((json) => json['is_passed'] == true)
+          .map((json) => json['quiz_id'] as String)
+          .toList());
+});
+
+// -- User completed lessons --
+final completedLessonIdsProvider = StreamProvider.autoDispose<List<String>>((ref) {
+  final supabase = SupabaseService.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) return Stream.value([]);
+
+  return supabase
+      .from(ApiConstants.progressTable)
+      .stream(primaryKey: ['id'])
+      .eq('user_id', user.id)
+      .map((data) => data
+          .where((json) => json['is_completed'] == true)
+          .map((json) => json['lesson_id'] as String)
+          .toList());
+});
+
+// -- Course Resources (real-time) --
+final courseResourcesProvider = StreamProvider.family<List<ResourceModel>, String>((ref, courseId) {
+  final supabase = SupabaseService.client;
+  return supabase
+      .from(ApiConstants.courseResourcesTable)
+      .stream(primaryKey: ['id'])
+      .eq('course_id', courseId)
+      .map((data) => data.map((json) => ResourceModel.fromJson(json)).toList());
+});
+
+// -- Course Quizzes (real-time) --
+final courseQuizzesProvider = StreamProvider.family<List<QuizModel>, String>((ref, courseId) {
+  final supabase = SupabaseService.client;
+  return supabase
+      .from(ApiConstants.quizzesTable)
+      .stream(primaryKey: ['id'])
+      .eq('course_id', courseId)
+      .order('created_at', ascending: true)
+      .map((data) => data.map((json) => QuizModel.fromJson(json)).toList());
 });

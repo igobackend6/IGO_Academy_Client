@@ -25,6 +25,12 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
     _scaffoldKey.currentState?.openEndDrawer();
   }
 
+  Future<void> _handleRefresh() async {
+    ref.invalidate(userEnrollmentsStreamProvider);
+    // Add a small delay to show the refresh animation
+    await Future.delayed(const Duration(seconds: 1));
+  }
+
   @override
   Widget build(BuildContext context) {
     final enrollmentsAsync = ref.watch(userEnrollmentsStreamProvider);
@@ -38,24 +44,38 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
       body: enrollmentsAsync.when(
         loading: () => const AppLoading(),
         error: (err, _) => AppError(message: err.toString()),
-        data: (enrollments) => enrollments.isEmpty
-            ? const AppEmptyState(
-                title: 'No Enrolled Courses',
-                subtitle: 'Browse and enroll in courses to start learning.',
-                icon: Icons.school_outlined,
-              )
-            : ListView.separated(
-                padding: const EdgeInsets.all(20),
-                itemCount: enrollments.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final e = enrollments[index];
-                  return _MyCourseCard(
-                    enrollment: e,
-                    onOpenPanel: () => _openSidePanel(e.courseId),
-                  );
-                },
-              ),
+        data: (enrollments) => RefreshIndicator(
+          onRefresh: _handleRefresh,
+          child: enrollments.isEmpty
+              ? LayoutBuilder(
+                  builder: (context, constraints) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      Container(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: const AppEmptyState(
+                          title: 'No Enrolled Courses',
+                          subtitle: 'Browse and enroll in courses to start learning.',
+                          icon: Icons.school_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(20),
+                  itemCount: enrollments.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final e = enrollments[index];
+                    return _MyCourseCard(
+                      enrollment: e,
+                      onOpenPanel: () => _openSidePanel(e.courseId),
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }
