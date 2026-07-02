@@ -17,10 +17,12 @@ class MyCoursesScreen extends ConsumerStatefulWidget {
 class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _selectedCourseIdForDrawer;
+  String _selectedCourseTitleForDrawer = '';
 
-  void _openSidePanel(String courseId) {
+  void _openSidePanel(String courseId, String courseTitle) {
     setState(() {
       _selectedCourseIdForDrawer = courseId;
+      _selectedCourseTitleForDrawer = courseTitle;
     });
     _scaffoldKey.currentState?.openEndDrawer();
   }
@@ -39,7 +41,10 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
       key: _scaffoldKey,
       appBar: AppBar(title: const Text('My Courses')),
       endDrawer: _selectedCourseIdForDrawer != null
-          ? EnrolledCourseSidePanel(courseId: _selectedCourseIdForDrawer!)
+          ? EnrolledCourseSidePanel(
+              courseId: _selectedCourseIdForDrawer!,
+              courseTitle: _selectedCourseTitleForDrawer,
+            )
           : null,
       body: enrollmentsAsync.when(
         loading: () => const AppLoading(),
@@ -71,7 +76,7 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
                     final e = enrollments[index];
                     return _MyCourseCard(
                       enrollment: e,
-                      onOpenPanel: () => _openSidePanel(e.courseId),
+                      onOpenPanel: _openSidePanel,
                     );
                   },
                 ),
@@ -83,7 +88,7 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
 
 class _MyCourseCard extends ConsumerWidget {
   final dynamic enrollment;
-  final VoidCallback onOpenPanel;
+  final void Function(String courseId, String courseTitle) onOpenPanel;
 
   const _MyCourseCard({required this.enrollment, required this.onOpenPanel});
 
@@ -149,7 +154,7 @@ class _MyCourseCard extends ConsumerWidget {
                 const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.menu_book, color: AppColors.primary),
-                  onPressed: onOpenPanel,
+                  onPressed: () => onOpenPanel(enrollment.courseId, course.title),
                   tooltip: 'Course Resources',
                 ),
               ],
