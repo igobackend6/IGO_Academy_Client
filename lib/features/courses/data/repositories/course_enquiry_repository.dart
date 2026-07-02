@@ -13,6 +13,7 @@ class CourseEnquiryRepository {
     String? altPhone,
     required String courseId,
     String? additionalDetails,
+    String? appUserId,
   }) async {
     try {
       await _supabase.from('app_enrollment_leads').insert({
@@ -22,6 +23,7 @@ class CourseEnquiryRepository {
         'alt_phone': altPhone,
         'program_of_interest': courseId,
         'additional_details': additionalDetails,
+        if (appUserId != null) 'app_user_id': appUserId,
       });
     } catch (e) {
       throw Exception('Failed to submit enquiry: $e');
@@ -45,6 +47,7 @@ class CourseEnquiryNotifier extends StateNotifier<AsyncValue<void>> {
     String? altPhone,
     required String courseId,
     String? additionalDetails,
+    String? appUserId,
   }) async {
     state = const AsyncLoading();
     try {
@@ -55,6 +58,7 @@ class CourseEnquiryNotifier extends StateNotifier<AsyncValue<void>> {
         altPhone: altPhone,
         courseId: courseId,
         additionalDetails: additionalDetails,
+        appUserId: appUserId,
       );
       state = const AsyncData(null);
     } catch (e, st) {

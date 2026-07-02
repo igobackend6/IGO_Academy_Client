@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../features/courses/data/repositories/course_enquiry_repository.dart';
 
@@ -26,6 +27,16 @@ class _CourseEnquiryScreenState extends ConsumerState<CourseEnquiryScreen> {
   void initState() {
     super.initState();
     _programController.text = Uri.decodeComponent(widget.categoryId);
+    // Auto-fill email and name from the logged-in user's account
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      _emailController.text = user.email ?? '';
+      final meta = user.userMetadata;
+      if (meta != null) {
+        _nameController.text =
+            (meta['full_name'] ?? meta['name'] ?? '').toString();
+      }
+    }
   }
 
   @override
@@ -41,6 +52,7 @@ class _CourseEnquiryScreenState extends ConsumerState<CourseEnquiryScreen> {
 
   void _submitEnquiry() {
     if (_formKey.currentState?.validate() ?? false) {
+      final authUserId = Supabase.instance.client.auth.currentUser?.id;
       ref.read(courseEnquiryNotifierProvider.notifier).submit(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
@@ -48,6 +60,7 @@ class _CourseEnquiryScreenState extends ConsumerState<CourseEnquiryScreen> {
         altPhone: _altPhoneController.text.trim().isEmpty ? null : _altPhoneController.text.trim(),
         courseId: _programController.text.trim(),
         additionalDetails: _detailsController.text.trim().isEmpty ? null : _detailsController.text.trim(),
+        appUserId: authUserId,
       );
     }
   }
@@ -141,7 +154,13 @@ class _CourseEnquiryScreenState extends ConsumerState<CourseEnquiryScreen> {
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(hintText: 'your@email.com'),
+                readOnly: Supabase.instance.client.auth.currentUser != null,
+                decoration: InputDecoration(
+                  hintText: 'your@email.com',
+                  suffixIcon: Supabase.instance.client.auth.currentUser != null
+                      ? const Icon(Icons.lock_outline, size: 16)
+                      : null,
+                ),
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Required';
                   if (!value.contains('@')) return 'Invalid email';
