@@ -1,6 +1,10 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../assessments/providers/assessment_provider.dart';
@@ -57,7 +61,10 @@ class EnrolledCourseSidePanel extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         'Course Resources',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -82,8 +89,14 @@ class EnrolledCourseSidePanel extends ConsumerWidget {
                 child: TabBarView(
                   children: [
                     _AssessmentTab(courseId: courseId),
-                    _ResourceTab(provider: _courseInfoProvider(courseId), emptyLabel: 'information'),
-                    _ResourceTab(provider: _courseNotesProvider(courseId), emptyLabel: 'notes'),
+                    _ResourceTab(
+                        courseId: courseId,
+                        providerFamily: _courseInfoProvider,
+                        emptyLabel: 'information'),
+                    _ResourceTab(
+                        courseId: courseId,
+                        providerFamily: _courseNotesProvider,
+                        emptyLabel: 'notes'),
                   ],
                 ),
               ),
@@ -95,6 +108,8 @@ class EnrolledCourseSidePanel extends ConsumerWidget {
   }
 }
 
+// ─── Assessment Tab ───────────────────────────────────────────────────────────
+
 class _AssessmentTab extends ConsumerWidget {
   final String courseId;
   const _AssessmentTab({required this.courseId});
@@ -104,11 +119,34 @@ class _AssessmentTab extends ConsumerWidget {
     final assessmentsAsync = ref.watch(assessmentsProvider(courseId));
 
     return assessmentsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-      error: (e, _) => Center(
+      loading: () => const Center(
+          child: CircularProgressIndicator(color: AppColors.primary)),
+      error: (e, stack) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('Error: $e', style: const TextStyle(color: Colors.red, fontSize: 13)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 40),
+              const SizedBox(height: 12),
+              const Text('Failed to load assessments',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600, color: Colors.red)),
+              const SizedBox(height: 8),
+              Text(
+                e.toString(),
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => ref.invalidate(assessmentsProvider(courseId)),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       ),
       data: (assessments) {
@@ -119,13 +157,16 @@ class _AssessmentTab extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.quiz_outlined, size: 56, color: AppColors.textTertiary),
+                  Icon(Icons.quiz_outlined,
+                      size: 56, color: AppColors.textTertiary),
                   const SizedBox(height: 16),
-                  Text('No assessments yet', style: Theme.of(context).textTheme.titleSmall),
+                  Text('No assessments yet',
+                      style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 6),
-                  Text('Check back after your next lesson',
+                  Text('Course ID: $courseId',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary)),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textTertiary, fontSize: 11)),
                 ],
               ),
             ),
@@ -140,37 +181,68 @@ class _AssessmentTab extends ConsumerWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               color: AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(14),
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.quiz_rounded, color: AppColors.primary, size: 22),
-                ),
-                title: Text(a.title,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                subtitle: Text(
-                  '${a.questions.length} questions · Pass ${a.passScore}%'
-                  '${a.timerMins != null ? ' · ⏱ ${a.timerMins} min' : ''}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                trailing: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    context.push('/assessment-quiz', extra: a);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Text('Start',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.quiz_rounded,
+                              color: AppColors.primary, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(a.title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14)),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${a.questions.length} questions · Pass ${a.passScore}%'
+                                '${a.timerMins != null ? ' · ⏱ ${a.timerMins} min' : ''}',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          context.push('/assessment-quiz', extra: a);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text('Start Assessment',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -181,15 +253,60 @@ class _AssessmentTab extends ConsumerWidget {
   }
 }
 
-class _ResourceTab extends ConsumerWidget {
-  final ProviderListenable<AsyncValue<List<Map<String, dynamic>>>> provider;
+// ─── Resource Tab (Information / Notes) ──────────────────────────────────────
+
+class _ResourceTab extends ConsumerStatefulWidget {
+  final String courseId;
+  final FutureProviderFamily<List<Map<String, dynamic>>, String> providerFamily;
   final String emptyLabel;
 
-  const _ResourceTab({required this.provider, required this.emptyLabel});
+  const _ResourceTab({
+    required this.courseId,
+    required this.providerFamily,
+    required this.emptyLabel,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(provider);
+  ConsumerState<_ResourceTab> createState() => _ResourceTabState();
+}
+
+class _ResourceTabState extends ConsumerState<_ResourceTab> {
+  String? _openingPdfId;
+
+  Future<void> _openPdf(
+      BuildContext ctx, String resourceId, String pdfPath, String title) async {
+    setState(() => _openingPdfId = resourceId);
+    try {
+      final signedUrl = await Supabase.instance.client.storage
+          .from('resource-pdfs')
+          .createSignedUrl(pdfPath, 3600);
+
+      final tempDir = await getTemporaryDirectory();
+      final localFile =
+          File('${tempDir.path}/${pdfPath.replaceAll('/', '_')}');
+
+      await Dio().download(signedUrl, localFile.path);
+
+      if (!mounted) return;
+      await Navigator.of(ctx).push(MaterialPageRoute(
+        builder: (_) => _PdfViewerPage(filePath: localFile.path, title: title),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text('Cannot open PDF: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _openingPdfId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(widget.providerFamily(widget.courseId));
 
     return async.when(
       loading: () => const AppLoading(),
@@ -203,12 +320,14 @@ class _ResourceTab extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    emptyLabel == 'notes' ? Icons.notes_outlined : Icons.info_outline_rounded,
+                    widget.emptyLabel == 'notes'
+                        ? Icons.notes_outlined
+                        : Icons.info_outline_rounded,
                     size: 56,
                     color: AppColors.textTertiary,
                   ),
                   const SizedBox(height: 16),
-                  Text('No $emptyLabel available',
+                  Text('No ${widget.emptyLabel} available',
                       style: Theme.of(context).textTheme.titleSmall),
                 ],
               ),
@@ -221,9 +340,11 @@ class _ResourceTab extends ConsumerWidget {
           itemCount: items.length,
           itemBuilder: (context, i) {
             final item = items[i];
-            final title   = item['title']    as String? ?? '';
-            final content = item['content']  as String? ?? '';
-            final hasPdf  = item['pdf_path'] != null;
+            final resourceId = item['id'] as String? ?? '';
+            final title = item['title'] as String? ?? '';
+            final content = item['content'] as String? ?? '';
+            final pdfPath = item['pdf_path'] as String?;
+            final isOpeningThis = _openingPdfId == resourceId;
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
@@ -242,54 +363,68 @@ class _ResourceTab extends ConsumerWidget {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: hasPdf
+                            color: pdfPath != null
                                 ? Colors.red.withOpacity(0.1)
                                 : AppColors.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
-                            hasPdf ? Icons.picture_as_pdf_outlined : Icons.article_outlined,
-                            color: hasPdf ? Colors.red : AppColors.primary,
+                            pdfPath != null
+                                ? Icons.picture_as_pdf_outlined
+                                : Icons.article_outlined,
+                            color: pdfPath != null
+                                ? Colors.red
+                                : AppColors.primary,
                             size: 20,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(title,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 14)),
                         ),
                       ],
                     ),
                     if (content.isNotEmpty) ...[
                       const SizedBox(height: 10),
-                      Text(content,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
-                                height: 1.5,
-                              ),
-                          maxLines: 5,
-                          overflow: TextOverflow.ellipsis),
+                      Text(
+                        content,
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  height: 1.5,
+                                ),
+                        maxLines: 5,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
-                    if (hasPdf) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withOpacity(0.2)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.picture_as_pdf, color: Colors.red, size: 14),
-                            SizedBox(width: 6),
-                            Text('PDF attached',
-                                style: TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600)),
-                          ],
+                    if (pdfPath != null) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: isOpeningThis
+                              ? null
+                              : () => _openPdf(
+                                  context, resourceId, pdfPath, title),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade600,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: isOpeningThis
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.open_in_new, size: 16),
+                          label: Text(isOpeningThis
+                              ? 'Opening PDF...'
+                              : 'Open PDF'),
                         ),
                       ),
                     ],
@@ -300,6 +435,73 @@ class _ResourceTab extends ConsumerWidget {
           },
         );
       },
+    );
+  }
+}
+
+// ─── In-app PDF viewer ────────────────────────────────────────────────────────
+
+class _PdfViewerPage extends StatefulWidget {
+  final String filePath;
+  final String title;
+  const _PdfViewerPage({required this.filePath, required this.title});
+
+  @override
+  State<_PdfViewerPage> createState() => _PdfViewerPageState();
+}
+
+class _PdfViewerPageState extends State<_PdfViewerPage> {
+  int _currentPage = 0;
+  int _totalPages = 0;
+  bool _isReady = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade900,
+      appBar: AppBar(
+        backgroundColor: Colors.grey.shade900,
+        foregroundColor: Colors.white,
+        title: Text(widget.title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis),
+        actions: [
+          if (_isReady)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Text(
+                  '${_currentPage + 1} / $_totalPages',
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 13),
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: PDFView(
+        filePath: widget.filePath,
+        enableSwipe: true,
+        swipeHorizontal: false,
+        autoSpacing: true,
+        pageFling: true,
+        onRender: (pages) =>
+            setState(() {
+              _totalPages = pages ?? 0;
+              _isReady = true;
+            }),
+        onPageChanged: (page, total) =>
+            setState(() {
+              _currentPage = page ?? 0;
+              _totalPages = total ?? 0;
+            }),
+        onError: (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('PDF error: $e'),
+                backgroundColor: Colors.red),
+          );
+        },
+      ),
     );
   }
 }
