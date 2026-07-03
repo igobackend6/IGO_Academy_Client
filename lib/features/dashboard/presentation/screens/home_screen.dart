@@ -310,7 +310,7 @@ class _ContinueLearningCard extends ConsumerWidget {
     final courseAsync = ref.watch(courseDetailProvider(enrollment.courseId));
 
     return GestureDetector(
-      onTap: () => context.push(RouteNames.courseDetail.replaceFirst(':id', enrollment.courseId)),
+      onTap: () => context.push('/courses/${enrollment.courseId}'),
       child: Container(
         width: 260,
         padding: const EdgeInsets.all(14),

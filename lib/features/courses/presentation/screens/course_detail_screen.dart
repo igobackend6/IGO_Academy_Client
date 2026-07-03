@@ -23,7 +23,17 @@ class CourseDetailScreen extends ConsumerWidget {
     final passedQuizIdsAsync = ref.watch(passedQuizIdsProvider);
     final completedLessonIdsAsync = ref.watch(completedLessonIdsProvider);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(RouteNames.home);
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: courseAsync.when(
         loading: () => const AppLoading(),
@@ -31,11 +41,13 @@ class CourseDetailScreen extends ConsumerWidget {
         data: (course) {
           if (course == null) return const AppError(message: 'Course not found');
           return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // Header
               SliverAppBar(
                 expandedHeight: 220,
                 pinned: true,
+                automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
                   background: Container(
                     decoration: const BoxDecoration(gradient: AppColors.cardGradient),
@@ -46,15 +58,8 @@ class CourseDetailScreen extends ConsumerWidget {
                   ),
                 ),
                 leading: IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.arrow_back_ios_rounded, size: 16, color: Colors.white),
-                  ),
-                  onPressed: () => context.pop(),
+                  icon: const Icon(Icons.arrow_back_ios_rounded, size: 20, color: Colors.white),
+                  onPressed: () => context.canPop() ? context.pop() : context.go(RouteNames.home),
                 ),
               ),
 
@@ -274,7 +279,7 @@ class CourseDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    )); // PopScope + Scaffold
   }
 }
 
