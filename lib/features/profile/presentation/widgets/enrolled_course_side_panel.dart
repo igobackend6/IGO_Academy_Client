@@ -275,6 +275,18 @@ class _ResourceTabState extends ConsumerState<_ResourceTab> {
 
   Future<void> _openPdf(
       BuildContext ctx, String resourceId, String pdfPath, String title) async {
+    // Guard: path must be a real storage path, not a local disk reference
+    if (pdfPath.isEmpty || pdfPath.startsWith('local:')) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(
+          content: Text('PDF not uploaded to cloud yet. Ask admin to re-upload.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     setState(() => _openingPdfId = resourceId);
     try {
       final signedUrl = await Supabase.instance.client.storage
@@ -291,6 +303,15 @@ class _ResourceTabState extends ConsumerState<_ResourceTab> {
       await Navigator.of(ctx).push(MaterialPageRoute(
         builder: (_) => _PdfViewerPage(filePath: localFile.path, title: title),
       ));
+    } on StorageException catch (e) {
+      if (!mounted) return;
+      final msg = (e.statusCode == '404' || e.error == 'not_found')
+          ? 'PDF file not found in storage. Ask admin to re-upload.'
+          : 'Storage error: ${e.message}';
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4)),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(ctx).showSnackBar(
