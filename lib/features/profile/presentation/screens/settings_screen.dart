@@ -89,7 +89,29 @@ class SettingsScreen extends ConsumerWidget {
             ),
             title: const Text('Privacy Policy'),
             trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary),
-            onTap: () {},
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Privacy Policy'),
+                  content: const SingleChildScrollView(
+                    child: Text(
+                      'Privacy Policy for IGO Academy\n\n'
+                      'We value your privacy. This app collects usage data '
+                      'and personal information to provide you with a better '
+                      'e-learning experience. We do not sell your data to third parties. '
+                      'By using this app, you agree to our data collection practices.'
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           const Divider(indent: 72),
           ListTile(
@@ -103,7 +125,29 @@ class SettingsScreen extends ConsumerWidget {
             ),
             title: const Text('Terms of Service'),
             trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary),
-            onTap: () {},
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Terms of Service'),
+                  content: const SingleChildScrollView(
+                    child: Text(
+                      'Terms of Service for IGO Academy\n\n'
+                      '1. You must not misuse the app or its content.\n'
+                      '2. All courses are intellectual property of their respective creators.\n'
+                      '3. We reserve the right to suspend accounts that violate these terms.\n'
+                      '4. Content is provided "as is" without warranties.'
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
